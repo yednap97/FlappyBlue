@@ -3,9 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flappy Blue — GitHub JSON Hack</title>
+  <title>Flappy Blue — GitHub Users</title>
   <style>
-    /* (keep your existing CSS exactly as before) */
+    :root{
+      --bg-top:#cfe9ff;
+      --bg-bottom:#6fb8ff;
+      --primary:#1e90ff;
+      --primary-dark:#0066cc;
+      --danger:#ff6b6b;
+      --danger-dark:#d64545;
+      --text:#022c52;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom));display:flex;align-items:center;justify-content:center;}
+    .wrap{width:100%;max-width:1200px;padding:18px;box-sizing:border-box;display:flex;gap:20px;align-items:flex-start;justify-content:center}
+    .card{position:relative;flex:1;max-width:760px;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(12,40,80,0.25);background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));backdrop-filter:blur(6px)}
+    header{position:absolute;inset:auto 12px auto 12px;top:10px;display:flex;align-items:center;justify-content:space-between;z-index:20}
+    h1{margin:0;font-size:18px;color:var(--text);background:rgba(255,255,255,0.9);padding:6px 10px;border-radius:8px}
+    canvas{display:block;width:100%;height:auto;background:linear-gradient(180deg,#bfe4ff,#8ed0ff)}
+    .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:center;pointer-events:none;z-index:10}
+    .scoreBox{margin-top:12px;background:rgba(255,255,255,0.9);padding:6px 12px;border-radius:999px;color:var(--text);font-weight:800;font-size:24px;box-shadow:0 2px 8px rgba(12,40,80,.2)}
+    .highBox{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.95);padding:6px 10px;border-radius:10px;font-weight:700;color:var(--text);box-shadow:0 2px 8px rgba(12,40,80,.2)}
+    .centerOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;pointer-events:none}
+    .message{background:white;border-radius:16px;padding:20px 28px;color:var(--text);text-align:center;box-shadow:0 6px 20px rgba(12,40,80,.3);min-width:220px}
+    .message #stateTitle{font-size:22px;font-weight:800;margin-bottom:8px}
+    .message #stateHint{font-size:14px;opacity:0.8}
+    footer{position:absolute;bottom:8px;left:0;right:0;margin:auto;width:fit-content;background:rgba(255,255,255,0.9);color:rgba(2,44,82,0.75);font-size:12px;padding:3px 8px;border-radius:8px;z-index:8}
+    .sidebar{width:300px;background:linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));border-radius:14px;padding:20px;box-shadow:0 6px 20px rgba(12,40,80,0.15);backdrop-filter: blur(6px)}
+    .sidebar h2{margin:0 0 10px;text-align:center;color:var(--text)}
+    .sidebar .field{margin:8px 0}
+    .sidebar input{width:100%;border:1px solid rgba(2,44,82,0.25);border-radius:10px;padding:10px 12px;font-size:14px}
+    .sidebar .actions{display:flex;gap:10px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+    .sidebar .note{margin-top:10px;text-align:center;color:var(--text);opacity:.8;font-size:13px}
+    #leaderboardList{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto}
+    #leaderboardList li{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(2,44,82,0.1)}
+    button{cursor:pointer;font-weight:600;padding:9px 16px;border-radius:8px;border:none;transition:all 0.2s;font-size:14px}
+    .btn-primary{background:var(--primary);color:white}
+    .btn-primary:hover{background:var(--primary-dark)}
+    .btn-danger{background:var(--danger);color:white}
+    .btn-danger:hover{background:var(--danger-dark)}
+    .btn-ghost{background:white;color:var(--text);border:1px solid rgba(2,44,82,0.2)}
+    .btn-ghost:hover{background:rgba(255,255,255,0.8)}
   </style>
 </head>
 <body>
@@ -58,161 +96,175 @@
     </div>
   </div>
 
-  <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+<script>
+/* ---------------- GITHUB JSON CONFIG ---------------- */
+const OWNER = "yednap97";
+const REPO = "FlappyBlue";
+const FILE_PATH = "data/users.json";
+const BRANCH = "main";
+const GITHUB_TOKEN = "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"; // your token
 
-    /* ---------------- GITHUB JSON CONFIG ---------------- */
-    const GITHUB_TOKEN = "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"; // ⚠️ anyone can see this
-    const OWNER = "yednap97";
-    const REPO = "FlappyBlue";
-    const FILE_PATH = "data/users.json";
-
-    let users = {};
-    let usersSha = null;
-    let currentUser = null;
-    let highScore = 0;
-
-    async function getUsers() {
-      const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
-        headers: { Authorization: `token ${GITHUB_TOKEN}` }
-      });
-      const data = await res.json();
-      const content = atob(data.content);
-      return { users: JSON.parse(content), sha: data.sha };
-    }
-
-    async function saveUsers(users, sha) {
-      const content = btoa(JSON.stringify(users, null, 2));
-      await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
-        method: "PUT",
-        headers: { Authorization: `token ${GITHUB_TOKEN}` },
-        body: JSON.stringify({
-          message: "Update users.json",
-          content,
-          sha
-        })
-      });
-    }
-
-    async function loadUsers() {
-      const res = await getUsers();
-      users = res.users;
-      usersSha = res.sha;
-    }
-
-    async function saveUsersRemote() {
-      await saveUsers(users, usersSha);
-      await loadUsers(); // refresh sha after commit
-    }
-
-    /* ---------------- PASSWORD HASHING ---------------- */
-    async function hashPassword(password) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(password);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      return hashHex;
-    }
-
-    /* ---------------- GAME LOGIC (unchanged) ---------------- */
-    let score = 0;
-    let running = false;
-    let gravity = 0.6;
-    let jump = -10;
-    let speed = 3;
-    let bird = { x:50, y:150, r:12, dy:0 };
-    let pipes = [];
-
-    function resetGame(){ bird = { x:50, y:150, r:12, dy:0 }; pipes = []; score = 0; }
-    function spawnPipe(){ const top=Math.random()*200+50; const gap=140; const bottom=canvas.height-top-gap; pipes.push({x:canvas.width,w:60,top,bottom,passed:false}); }
-    function drawBackground(){ const grd=ctx.createLinearGradient(0,0,0,canvas.height); grd.addColorStop(0,"#cfe9ff"); grd.addColorStop(1,"#6fb8ff"); ctx.fillStyle=grd; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="white"; drawCloud(60,100); drawCloud(200,150); drawCloud(120,250); ctx.fillStyle="rgba(0,0,0,0.05)"; ctx.fillRect(0,canvas.height-30,canvas.width,30);}
-    function drawCloud(x,y){ctx.beginPath();ctx.arc(x,y,20,0,Math.PI*2);ctx.arc(x+25,y+10,25,0,Math.PI*2);ctx.arc(x-25,y+10,25,0,Math.PI*2);ctx.fill();}
-    function drawBird(){ctx.fillStyle="white";ctx.beginPath();ctx.arc(bird.x,bird.y,bird.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#004aad";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="white";ctx.beginPath();ctx.arc(bird.x+4,bird.y-4,3,0,Math.PI*2);ctx.fill();ctx.fillStyle="black";ctx.beginPath();ctx.arc(bird.x+4,bird.y-4,1.5,0,Math.PI*2);ctx.fill();}
-    function drawPipes(){pipes.forEach(p=>{ctx.fillStyle="#1e5cb8";ctx.fillRect(p.x,0,p.w,p.top);ctx.fillRect(p.x,canvas.height-p.bottom,p.w,p.bottom);ctx.fillStyle="#154a96";ctx.fillRect(p.x+p.w-6,0,6,p.top);ctx.fillRect(p.x+p.w-6,canvas.height-p.bottom,6,p.bottom);});}
-
-    const overlayBox=document.getElementById('overlayBox');
-    const stateTitle=document.getElementById('stateTitle');
-    const stateHint=document.getElementById('stateHint');
-    const scoreBox=document.getElementById('scoreBox');
-    const highBox=document.getElementById('highBox');
-
-    function update(){
-      bird.dy+=gravity;bird.y+=bird.dy;
-      if(!pipes.length||pipes[pipes.length-1].x<canvas.width-200){spawnPipe();}
-      pipes.forEach(p=>{p.x-=speed;});if(pipes[0]&&pipes[0].x+pipes[0].w<0){pipes.shift();}
-      pipes.forEach(p=>{if(!p.passed&&p.x+p.w<bird.x-bird.r){p.passed=true;score++;}});
-      if(bird.y+bird.r>=canvas.height||bird.y-bird.r<=0){endGame();return;}
-      for(const p of pipes){const inX=bird.x+bird.r>p.x&&bird.x-bird.r<p.x+p.w;const hitTop=bird.y-bird.r<p.top;const hitBottom=bird.y+bird.r>canvas.height-p.bottom;if(inX&&(hitTop||hitBottom)){endGame();return;}}
-      drawBackground();drawPipes();drawBird();scoreBox.textContent=score;highBox.textContent='HS: '+highScore;
-    }
-    function loop(){if(!running)return;update();requestAnimationFrame(loop);}
-    function endGame(){running=false;overlayBox.style.display="block";if(score>highScore){highScore=score;if(currentUser){users[currentUser].highScore=highScore;saveUsersRemote();}}stateTitle.textContent='GAME OVER';stateHint.textContent='Score: '+score;}
-    function flap(){bird.dy=jump;}
-    document.addEventListener('keydown',e=>{if(e.code==='Space'||e.key===' '){e.preventDefault();flap();}});canvas.addEventListener('click',flap);canvas.addEventListener('touchstart',flap,{passive:true});
-    function refreshHighBox(){highBox.textContent='HS: '+highScore;}
-
-    /* ---------------- AUTH BUTTONS ---------------- */
-    const loginBtn=document.getElementById('loginBtn');
-    const registerBtn=document.getElementById('registerBtn');
-    const usernameInput=document.getElementById('username');
-    const passwordInput=document.getElementById('password');
-    const authMsg=document.getElementById('authMsg');
-    const playBtn=document.getElementById('playBtn');
-    const quitBtn=document.getElementById('quitBtn');
-    const logoutBtn=document.getElementById('logoutBtn');
-    const leaderboardBtn=document.getElementById('leaderboardBtn');
-    const leaderboardSidebar=document.getElementById('leaderboardSidebar');
-    const leaderboardList=document.getElementById('leaderboardList');
-
-    loginBtn.addEventListener('click', async ()=>{
-      await loadUsers();
-      const u=usernameInput.value.trim();const p=passwordInput.value;
-      if(!u||!p){authMsg.textContent='Enter a username and password';return;}
-      const hashed=await hashPassword(p);
-      if(users[u]?.password===hashed){currentUser=u;highScore=users[u].highScore||0;authMsg.textContent='Login successful';logoutBtn.style.display='inline-block';stateTitle.textContent='Welcome, '+currentUser;stateHint.textContent='Press Play to begin.';refreshHighBox();}
-      else{authMsg.textContent='Invalid credentials';}
+async function getUsersFromGitHub() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+      headers: { Authorization: `token ${GITHUB_TOKEN}` }
     });
-
-    registerBtn.addEventListener('click', async ()=>{
-      await loadUsers();
-      const u=usernameInput.value.trim();const p=passwordInput.value;
-      if(!u||!p){authMsg.textContent='Enter a username and password';return;}
-      if(users[u]){authMsg.textContent='Username already exists';return;}
-      const hashed=await hashPassword(p);
-      users[u]={password:hashed,highScore:0};
-      await saveUsersRemote();
-      authMsg.textContent='Registered successfully. Please login';
-    });
-
-    logoutBtn.addEventListener('click', ()=>{
-      currentUser=null;highScore=0;stateTitle.textContent='Welcome';stateHint.textContent='Login to start playing';logoutBtn.style.display='none';refreshHighBox();running=false;
-    });
-
-    leaderboardBtn.addEventListener('click', async ()=>{
-      if(leaderboardSidebar.style.display==='none'){await loadUsers();populateLeaderboard();leaderboardSidebar.style.display='block';}
-      else{leaderboardSidebar.style.display='none';}
-    });
-
-    function populateLeaderboard(){
-      leaderboardList.innerHTML='';
-      const arr=Object.entries(users).map(([name,data])=>({user:name,score:data.highScore||0})).sort((a,b)=>b.score-a.score);
-      if(arr.length===0){leaderboardList.innerHTML='<li>No players yet.</li>';return;}
-      arr.forEach((row,i)=>{const li=document.createElement('li');li.textContent=`${i+1}. ${row.user} — ${row.score}`;leaderboardList.appendChild(li);});
+    const data = await res.json();
+    if (data.content) {
+      const decoded = atob(data.content);
+      return JSON.parse(decoded);
     }
+    return {};
+  } catch(e){ console.error(e); return {}; }
+}
 
-    playBtn.addEventListener('click', ()=>{
-      if(!currentUser){stateHint.textContent='Login first!';return;}
-      resetGame();overlayBox.style.display="none";running=true;requestAnimationFrame(loop);
+async function saveUsersToGitHub(users) {
+  try {
+    const getRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+      headers: { Authorization: `token ${GITHUB_TOKEN}` }
     });
-
-    quitBtn.addEventListener('click', ()=>{
-      running=false;overlayBox.style.display="block";stateTitle.textContent='Goodbye!';stateHint.textContent='Thanks for playing';
+    const getData = await getRes.json();
+    const sha = getData.sha;
+    await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+      method: "PUT",
+      headers: { Authorization: `token ${GITHUB_TOKEN}`, "Content-Type":"application/json" },
+      body: JSON.stringify({
+        message: "Update users.json",
+        content: btoa(JSON.stringify(users)),
+        sha: sha,
+        branch: BRANCH
+      })
     });
+  } catch(e){ console.error(e); }
+}
 
-    // Load users on startup
-    loadUsers();
-  </script>
+// SHA-256 hash function
+async function hashPassword(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* ---------------- GAME LOGIC ---------------- */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let users = {};
+let currentUser = null;
+let highScore = 0;
+
+let score = 0;
+let running = false;
+let gravity = 0.6;
+let jump = -10;
+let speed = 3;
+let bird = { x:50, y:150, r:12, dy:0 };
+let pipes = [];
+
+const loginBtn = document.getElementById('loginBtn');
+const registerBtn = document.getElementById('registerBtn');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const authMsg = document.getElementById('authMsg');
+
+const playBtn = document.getElementById('playBtn');
+const quitBtn = document.getElementById('quitBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const leaderboardBtn = document.getElementById('leaderboardBtn');
+
+const leaderboardSidebar = document.getElementById('leaderboardSidebar');
+const leaderboardList = document.getElementById('leaderboardList');
+
+const overlayBox = document.getElementById('overlayBox');
+const stateTitle = document.getElementById('stateTitle');
+const stateHint = document.getElementById('stateHint');
+const scoreBox = document.getElementById('scoreBox');
+const highBox = document.getElementById('highBox');
+
+/* ---------------- INIT ---------------- */
+async function initUsers() {
+  users = await getUsersFromGitHub();
+  console.log("Users loaded from GitHub:", users);
+}
+initUsers();
+
+/* ---------------- GAME FUNCTIONS ---------------- */
+function resetGame(){ bird = { x:50, y:150, r:12, dy:0 }; pipes=[]; score=0; }
+
+function spawnPipe(){ const top=Math.random()*200+50; const gap=140; const bottom=canvas.height-top-gap; pipes.push({x:canvas.width,w:60,top,bottom,passed:false}); }
+
+function drawBackground(){ const grd=ctx.createLinearGradient(0,0,0,canvas.height); grd.addColorStop(0,"#cfe9ff"); grd.addColorStop(1,"#6fb8ff"); ctx.fillStyle=grd; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="white"; drawCloud(60,100); drawCloud(200,150); drawCloud(120,250); ctx.fillStyle="rgba(0,0,0,0.05)"; ctx.fillRect(0,canvas.height-30,canvas.width,30); }
+function drawCloud(x,y){ ctx.beginPath(); ctx.arc(x,y,20,0,Math.PI*2); ctx.arc(x+25,y+10,25,0,Math.PI*2); ctx.arc(x-25,y+10,25,0,Math.PI*2); ctx.fill(); }
+
+function drawBird(){ ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(bird.x,bird.y,bird.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle="#004aad"; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(bird.x+4,bird.y-4,3,0,Math.PI*2); ctx.fill(); ctx.fillStyle="black"; ctx.beginPath(); ctx.arc(bird.x+4,bird.y-4,1.5,0,Math.PI*2); ctx.fill(); }
+
+function drawPipes(){ pipes.forEach(p=>{ ctx.fillStyle="#1e5cb8"; ctx.fillRect(p.x,0,p.w,p.top); ctx.fillRect(p.x,canvas.height-p.bottom,p.w,p.bottom); ctx.fillStyle="#154a96"; ctx.fillRect(p.x+p.w-6,0,6,p.top); ctx.fillRect(p.x+p.w-6,canvas.height-p.bottom,6,p.bottom); }); }
+
+function update(){ bird.dy+=gravity; bird.y+=bird.dy; if(!pipes.length||pipes[pipes.length-1].x<canvas.width-200){ spawnPipe(); } pipes.forEach(p=>{p.x-=speed;}); if(pipes[0]&&pipes[0].x+pipes[0].w<0){pipes.shift();} pipes.forEach(p=>{if(!p.passed&&p.x+p.w<bird.x-bird.r){p.passed=true;score++;}}); if(bird.y+bird.r>=canvas.height||bird.y-bird.r<=0){endGame();return;} for(const p of pipes){ const inX=bird.x+bird.r>p.x&&bird.x-bird.r<p.x+p.w; const hitTop=bird.y-bird.r<p.top; const hitBottom=bird.y+bird.r>canvas.height-p.bottom; if(inX&&(hitTop||hitBottom)){endGame();return;} } drawBackground(); drawPipes(); drawBird(); scoreBox.textContent=score; highBox.textContent='HS: '+highScore; }
+
+function loop(){ if(!running) return; update(); requestAnimationFrame(loop); }
+
+function endGame(){ running=false; overlayBox.style.display="block"; if(score>highScore){ highScore=score; if(currentUser){ users[currentUser].highScore=highScore; saveUsersToGitHub(users); } } stateTitle.textContent='GAME OVER'; stateHint.textContent='Score: '+score; }
+
+function flap(){ bird.dy=jump; }
+document.addEventListener('keydown',e=>{ if(e.code==='Space'||e.key===' '){ e.preventDefault(); flap(); } });
+canvas.addEventListener('click',flap);
+canvas.addEventListener('touchstart',flap,{passive:true});
+
+function refreshHighBox(){ highBox.textContent='HS: '+highScore; }
+
+/* ---------------- AUTH ---------------- */
+registerBtn.addEventListener('click',async()=>{
+  const u=usernameInput.value.trim(); const p=passwordInput.value;
+  if(!u||!p){ authMsg.textContent='Enter a username and password'; return; }
+  if(users[u]){ authMsg.textContent='Username already exists'; return; }
+  const hashed = await hashPassword(p);
+  users[u]={password:hashed,highScore:0};
+  await saveUsersToGitHub(users);
+  authMsg.textContent='Registered successfully. Please login';
+});
+
+loginBtn.addEventListener('click',async()=>{
+  const u=usernameInput.value.trim(); const p=passwordInput.value;
+  if(!u||!p){ authMsg.textContent='Enter a username and password'; return; }
+  const hashed = await hashPassword(p);
+  if(users[u]?.password===hashed){
+    currentUser=u; highScore=users[u].highScore||0; authMsg.textContent='Login successful';
+    logoutBtn.style.display='inline-block';
+    stateTitle.textContent='Welcome, '+currentUser;
+    stateHint.textContent='Press Play to begin.';
+    refreshHighBox();
+  } else { authMsg.textContent='Invalid credentials'; }
+});
+
+logoutBtn.addEventListener('click',()=>{
+  currentUser=null; highScore=0; stateTitle.textContent='Welcome'; stateHint.textContent='Login to start playing';
+  logoutBtn.style.display='none'; refreshHighBox(); running=false;
+});
+
+/* ---------------- LEADERBOARD ---------------- */
+leaderboardBtn.addEventListener('click',()=>{
+  if(leaderboardSidebar.style.display==='none'){ populateLeaderboard(); leaderboardSidebar.style.display='block'; }
+  else{ leaderboardSidebar.style.display='none'; }
+});
+
+function populateLeaderboard(){
+  leaderboardList.innerHTML='';
+  const arr=Object.entries(users).map(([name,data])=>({user:name,score:data.highScore||0})).sort((a,b)=>b.score-a.score);
+  if(arr.length===0){ leaderboardList.innerHTML='<li>No players yet.</li>'; return; }
+  arr.forEach((row,i)=>{
+    const li=document.createElement('li'); li.textContent=`${i+1}. ${row.user} — ${row.score}`; leaderboardList.appendChild(li);
+  });
+}
+
+/* ---------------- GAME BUTTONS ---------------- */
+playBtn.addEventListener('click',()=>{
+  if(!currentUser){ stateHint.textContent='Login first!'; return; }
+  resetGame(); overlayBox.style.display="none"; running=true; requestAnimationFrame(loop);
+});
+
+quitBtn.addEventListener('click',()=>{
+  running=false; overlayBox.style.display="block"; stateTitle.textContent='Goodbye!'; stateHint.textContent='Thanks for playing';
+});
+</script>
 </body>
 </html>
