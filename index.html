@@ -5,16 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flappy Blue — GitHub Users</title>
   <style>
-    :root{
-      --bg-top:#cfe9ff;
-      --bg-bottom:#6fb8ff;
-      --primary:#1e90ff;
-      --primary-dark:#0066cc;
-      --danger:#ff6b6b;
-      --danger-dark:#d64545;
-      --text:#022c52;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    }
+    /* --- same CSS as before, unchanged --- */
+    :root{--bg-top:#cfe9ff;--bg-bottom:#6fb8ff;--primary:#1e90ff;--primary-dark:#0066cc;--danger:#ff6b6b;--danger-dark:#d64545;--text:#022c52;font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
     html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom));display:flex;align-items:center;justify-content:center;}
     .wrap{width:100%;max-width:1200px;padding:18px;box-sizing:border-box;display:flex;gap:20px;align-items:flex-start;justify-content:center}
     .card{position:relative;flex:1;max-width:760px;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(12,40,80,0.25);background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));backdrop-filter:blur(6px)}
@@ -49,10 +41,7 @@
 <body>
   <div class="wrap">
     <div class="card">
-      <header>
-        <h1>Flappy Blue</h1>
-      </header>
-
+      <header><h1>Flappy Blue</h1></header>
       <canvas id="game" width="360" height="640"></canvas>
 
       <div class="hud">
@@ -66,11 +55,9 @@
           <div id="stateHint">Login to start playing</div>
         </div>
       </div>
-
       <footer>By V</footer>
     </div>
 
-    <!-- Auth Sidebar -->
     <div class="sidebar" id="authSidebar">
       <h2>Login / Register</h2>
       <div class="field"><input id="username" type="text" placeholder="Username"></div>
@@ -89,182 +76,185 @@
       </div>
     </div>
 
-    <!-- Leaderboard Sidebar -->
     <div class="sidebar" id="leaderboardSidebar" style="display:none">
       <h2>Leaderboard</h2>
       <ul id="leaderboardList"></ul>
     </div>
   </div>
 
-<script>
-/* ---------------- GITHUB JSON CONFIG ---------------- */
-const OWNER = "yednap97";
-const REPO = "FlappyBlue";
-const FILE_PATH = "data/users.json";
-const BRANCH = "main";
-const GITHUB_TOKEN = "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"; // your token
+  <script>
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
 
-async function getUsersFromGitHub() {
-  try {
-    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
-      headers: { Authorization: `token ${GITHUB_TOKEN}` }
-    });
-    const data = await res.json();
-    if (data.content) {
-      const decoded = atob(data.content);
-      return JSON.parse(decoded);
-    }
-    return {};
-  } catch(e){ console.error(e); return {}; }
-}
+  // --- GitHub integration ---
+  const OWNER = "yednap97";
+  const REPO = "FlappyBlue";
+  const FILE_PATH = "data/users.json";
+  const BRANCH = "main";
+  const GITHUB_TOKEN = "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";
 
-async function saveUsersToGitHub(users) {
-  try {
-    const getRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
-      headers: { Authorization: `token ${GITHUB_TOKEN}` }
-    });
-    const getData = await getRes.json();
-    const sha = getData.sha;
-    await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
-      method: "PUT",
-      headers: { Authorization: `token ${GITHUB_TOKEN}`, "Content-Type":"application/json" },
-      body: JSON.stringify({
-        message: "Update users.json",
-        content: btoa(JSON.stringify(users)),
-        sha: sha,
-        branch: BRANCH
-      })
-    });
-  } catch(e){ console.error(e); }
-}
+  let users = {};
+  let currentUser = null;
+  let highScore = 0;
 
-// SHA-256 hash function
-async function hashPassword(str) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+  async function fetchUsersFromGitHub() {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+        headers: { Authorization: `token ${GITHUB_TOKEN}` }
+      });
+      const data = await res.json();
+      if (data.content) {
+        const jsonStr = atob(data.content);
+        users = JSON.parse(jsonStr);
+      }
+    } catch (e) { console.error("Fetch users failed:", e); users = {}; }
+  }
 
-/* ---------------- GAME LOGIC ---------------- */
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+  async function saveUsersToGitHub(users) {
+    try {
+      let sha = null;
+      try {
+        const getRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+          headers: { Authorization: `token ${GITHUB_TOKEN}` }
+        });
+        const getData = await getRes.json();
+        sha = getData.sha;
+      } catch(e){ console.log("File will be created"); }
 
-let users = {};
-let currentUser = null;
-let highScore = 0;
+      await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+        method: "PUT",
+        headers: { Authorization: `token ${GITHUB_TOKEN}`, "Content-Type":"application/json" },
+        body: JSON.stringify({
+          message: "Update users.json",
+          content: btoa(JSON.stringify(users)),
+          sha: sha || undefined,
+          branch: BRANCH
+        })
+      });
+    } catch(e){ console.error("Save failed:", e); }
+  }
 
-let score = 0;
-let running = false;
-let gravity = 0.6;
-let jump = -10;
-let speed = 3;
-let bird = { x:50, y:150, r:12, dy:0 };
-let pipes = [];
+  async function hashPassword(password) {
+    const msgUint8 = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+  }
 
-const loginBtn = document.getElementById('loginBtn');
-const registerBtn = document.getElementById('registerBtn');
-const usernameInput = document.getElementById('username');
-const passwordInput = document.getElementById('password');
-const authMsg = document.getElementById('authMsg');
+  // --- Game variables ---
+  let score = 0, running = false, gravity = 0.6, jump = -10, speed = 3;
+  let bird = { x:50, y:150, r:12, dy:0 }, pipes = [];
 
-const playBtn = document.getElementById('playBtn');
-const quitBtn = document.getElementById('quitBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const leaderboardBtn = document.getElementById('leaderboardBtn');
+  const loginBtn = document.getElementById('loginBtn');
+  const registerBtn = document.getElementById('registerBtn');
+  const usernameInput = document.getElementById('username');
+  const passwordInput = document.getElementById('password');
+  const authMsg = document.getElementById('authMsg');
 
-const leaderboardSidebar = document.getElementById('leaderboardSidebar');
-const leaderboardList = document.getElementById('leaderboardList');
+  const playBtn = document.getElementById('playBtn');
+  const quitBtn = document.getElementById('quitBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const leaderboardBtn = document.getElementById('leaderboardBtn');
 
-const overlayBox = document.getElementById('overlayBox');
-const stateTitle = document.getElementById('stateTitle');
-const stateHint = document.getElementById('stateHint');
-const scoreBox = document.getElementById('scoreBox');
-const highBox = document.getElementById('highBox');
+  const leaderboardSidebar = document.getElementById('leaderboardSidebar');
+  const leaderboardList = document.getElementById('leaderboardList');
 
-/* ---------------- INIT ---------------- */
-async function initUsers() {
-  users = await getUsersFromGitHub();
-  console.log("Users loaded from GitHub:", users);
-}
-initUsers();
+  const overlayBox = document.getElementById('overlayBox');
+  const stateTitle = document.getElementById('stateTitle');
+  const stateHint = document.getElementById('stateHint');
+  const scoreBox = document.getElementById('scoreBox');
+  const highBox = document.getElementById('highBox');
 
-/* ---------------- GAME FUNCTIONS ---------------- */
-function resetGame(){ bird = { x:50, y:150, r:12, dy:0 }; pipes=[]; score=0; }
+  function resetGame(){ bird={x:50,y:150,r:12,dy:0}; pipes=[]; score=0; }
+  function spawnPipe(){ const top=Math.random()*200+50; const gap=140; pipes.push({x:canvas.width,w:60,top,bottom:canvas.height-top-gap,passed:false}); }
+  function drawBackground(){ const grd=ctx.createLinearGradient(0,0,0,canvas.height); grd.addColorStop(0,"#cfe9ff"); grd.addColorStop(1,"#6fb8ff"); ctx.fillStyle=grd; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="white"; drawCloud(60,100); drawCloud(200,150); drawCloud(120,250); ctx.fillStyle="rgba(0,0,0,0.05)"; ctx.fillRect(0, canvas.height-30, canvas.width, 30);}
+  function drawCloud(x,y){ ctx.beginPath(); ctx.arc(x,y,20,0,Math.PI*2); ctx.arc(x+25,y+10,25,0,Math.PI*2); ctx.arc(x-25,y+10,25,0,Math.PI*2); ctx.fill();}
+  function drawBird(){ ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(bird.x,bird.y,bird.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle="#004aad"; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(bird.x+4,bird.y-4,3,0,Math.PI*2); ctx.fill(); ctx.fillStyle="black"; ctx.beginPath(); ctx.arc(bird.x+4,bird.y-4,1.5,0,Math.PI*2); ctx.fill();}
+  function drawPipes(){ pipes.forEach(p=>{ ctx.fillStyle="#1e5cb8"; ctx.fillRect(p.x,0,p.w,p.top); ctx.fillRect(p.x,canvas.height-p.bottom,p.w,p.bottom); ctx.fillStyle="#154a96"; ctx.fillRect(p.x+p.w-6,0,6,p.top); ctx.fillRect(p.x+p.w-6,canvas.height-p.bottom,6,p.bottom); }); }
 
-function spawnPipe(){ const top=Math.random()*200+50; const gap=140; const bottom=canvas.height-top-gap; pipes.push({x:canvas.width,w:60,top,bottom,passed:false}); }
+  function update(){
+    bird.dy+=gravity; bird.y+=bird.dy;
+    if(!pipes.length || pipes[pipes.length-1].x < canvas.width-200) spawnPipe();
+    pipes.forEach(p=>p.x-=speed);
+    if(pipes[0] && pipes[0].x + pipes[0].w < 0) pipes.shift();
+    pipes.forEach(p=>{ if(!p.passed && p.x+p.w < bird.x-bird.r){ p.passed=true; score++; }});
+    if(bird.y+bird.r>=canvas.height || bird.y-bird.r<=0){ endGame(); return; }
+    for(const p of pipes){ const inX=bird.x+bird.r>p.x && bird.x-bird.r<p.x+p.w; const hitTop=bird.y-bird.r<p.top; const hitBottom=bird.y+bird.r>canvas.height-p.bottom; if(inX && (hitTop||hitBottom)){ endGame(); return; } }
+    drawBackground(); drawPipes(); drawBird();
+    scoreBox.textContent=score; highBox.textContent='HS: '+highScore;
+  }
 
-function drawBackground(){ const grd=ctx.createLinearGradient(0,0,0,canvas.height); grd.addColorStop(0,"#cfe9ff"); grd.addColorStop(1,"#6fb8ff"); ctx.fillStyle=grd; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle="white"; drawCloud(60,100); drawCloud(200,150); drawCloud(120,250); ctx.fillStyle="rgba(0,0,0,0.05)"; ctx.fillRect(0,canvas.height-30,canvas.width,30); }
-function drawCloud(x,y){ ctx.beginPath(); ctx.arc(x,y,20,0,Math.PI*2); ctx.arc(x+25,y+10,25,0,Math.PI*2); ctx.arc(x-25,y+10,25,0,Math.PI*2); ctx.fill(); }
+  function loop(){ if(!running) return; update(); requestAnimationFrame(loop); }
+  function endGame(){ running=false; overlayBox.style.display="block"; if(score>highScore){ highScore=score; if(currentUser){ users[currentUser].highScore=highScore; saveUsersToGitHub(users); } } stateTitle.textContent='GAME OVER'; stateHint.textContent='Score: '+score;}
+  function flap(){ bird.dy=jump; }
 
-function drawBird(){ ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(bird.x,bird.y,bird.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle="#004aad"; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(bird.x+4,bird.y-4,3,0,Math.PI*2); ctx.fill(); ctx.fillStyle="black"; ctx.beginPath(); ctx.arc(bird.x+4,bird.y-4,1.5,0,Math.PI*2); ctx.fill(); }
+  document.addEventListener('keydown', e=>{ if(e.code==='Space'||e.key===' '){ e.preventDefault(); flap(); } });
+  canvas.addEventListener('click', flap);
+  canvas.addEventListener('touchstart', flap,{passive:true});
 
-function drawPipes(){ pipes.forEach(p=>{ ctx.fillStyle="#1e5cb8"; ctx.fillRect(p.x,0,p.w,p.top); ctx.fillRect(p.x,canvas.height-p.bottom,p.w,p.bottom); ctx.fillStyle="#154a96"; ctx.fillRect(p.x+p.w-6,0,6,p.top); ctx.fillRect(p.x+p.w-6,canvas.height-p.bottom,6,p.bottom); }); }
+  function refreshHighBox(){ highBox.textContent='HS: '+highScore; }
 
-function update(){ bird.dy+=gravity; bird.y+=bird.dy; if(!pipes.length||pipes[pipes.length-1].x<canvas.width-200){ spawnPipe(); } pipes.forEach(p=>{p.x-=speed;}); if(pipes[0]&&pipes[0].x+pipes[0].w<0){pipes.shift();} pipes.forEach(p=>{if(!p.passed&&p.x+p.w<bird.x-bird.r){p.passed=true;score++;}}); if(bird.y+bird.r>=canvas.height||bird.y-bird.r<=0){endGame();return;} for(const p of pipes){ const inX=bird.x+bird.r>p.x&&bird.x-bird.r<p.x+p.w; const hitTop=bird.y-bird.r<p.top; const hitBottom=bird.y+bird.r>canvas.height-p.bottom; if(inX&&(hitTop||hitBottom)){endGame();return;} } drawBackground(); drawPipes(); drawBird(); scoreBox.textContent=score; highBox.textContent='HS: '+highScore; }
-
-function loop(){ if(!running) return; update(); requestAnimationFrame(loop); }
-
-function endGame(){ running=false; overlayBox.style.display="block"; if(score>highScore){ highScore=score; if(currentUser){ users[currentUser].highScore=highScore; saveUsersToGitHub(users); } } stateTitle.textContent='GAME OVER'; stateHint.textContent='Score: '+score; }
-
-function flap(){ bird.dy=jump; }
-document.addEventListener('keydown',e=>{ if(e.code==='Space'||e.key===' '){ e.preventDefault(); flap(); } });
-canvas.addEventListener('click',flap);
-canvas.addEventListener('touchstart',flap,{passive:true});
-
-function refreshHighBox(){ highBox.textContent='HS: '+highScore; }
-
-/* ---------------- AUTH ---------------- */
-registerBtn.addEventListener('click',async()=>{
-  const u=usernameInput.value.trim(); const p=passwordInput.value;
-  if(!u||!p){ authMsg.textContent='Enter a username and password'; return; }
-  if(users[u]){ authMsg.textContent='Username already exists'; return; }
-  const hashed = await hashPassword(p);
-  users[u]={password:hashed,highScore:0};
-  await saveUsersToGitHub(users);
-  authMsg.textContent='Registered successfully. Please login';
-});
-
-loginBtn.addEventListener('click',async()=>{
-  const u=usernameInput.value.trim(); const p=passwordInput.value;
-  if(!u||!p){ authMsg.textContent='Enter a username and password'; return; }
-  const hashed = await hashPassword(p);
-  if(users[u]?.password===hashed){
-    currentUser=u; highScore=users[u].highScore||0; authMsg.textContent='Login successful';
-    logoutBtn.style.display='inline-block';
-    stateTitle.textContent='Welcome, '+currentUser;
-    stateHint.textContent='Press Play to begin.';
-    refreshHighBox();
-  } else { authMsg.textContent='Invalid credentials'; }
-});
-
-logoutBtn.addEventListener('click',()=>{
-  currentUser=null; highScore=0; stateTitle.textContent='Welcome'; stateHint.textContent='Login to start playing';
-  logoutBtn.style.display='none'; refreshHighBox(); running=false;
-});
-
-/* ---------------- LEADERBOARD ---------------- */
-leaderboardBtn.addEventListener('click',()=>{
-  if(leaderboardSidebar.style.display==='none'){ populateLeaderboard(); leaderboardSidebar.style.display='block'; }
-  else{ leaderboardSidebar.style.display='none'; }
-});
-
-function populateLeaderboard(){
-  leaderboardList.innerHTML='';
-  const arr=Object.entries(users).map(([name,data])=>({user:name,score:data.highScore||0})).sort((a,b)=>b.score-a.score);
-  if(arr.length===0){ leaderboardList.innerHTML='<li>No players yet.</li>'; return; }
-  arr.forEach((row,i)=>{
-    const li=document.createElement('li'); li.textContent=`${i+1}. ${row.user} — ${row.score}`; leaderboardList.appendChild(li);
+  // --- Auth ---
+  loginBtn.addEventListener('click', async ()=>{
+    const u=usernameInput.value.trim();
+    const p=passwordInput.value;
+    if(!u||!p){ authMsg.textContent='Enter a username and password'; return; }
+    await fetchUsersFromGitHub();
+    if(users[u] && users[u].passwordHash === await hashPassword(p)){
+      currentUser=u;
+      highScore=users[u].highScore||0;
+      authMsg.textContent='Login successful';
+      logoutBtn.style.display='inline-block';
+      stateTitle.textContent='Welcome, '+currentUser;
+      stateHint.textContent='Press Play to begin.';
+      refreshHighBox();
+    } else { authMsg.textContent='Invalid credentials'; }
   });
-}
 
-/* ---------------- GAME BUTTONS ---------------- */
-playBtn.addEventListener('click',()=>{
-  if(!currentUser){ stateHint.textContent='Login first!'; return; }
-  resetGame(); overlayBox.style.display="none"; running=true; requestAnimationFrame(loop);
-});
+  registerBtn.addEventListener('click', async ()=>{
+    const u=usernameInput.value.trim();
+    const p=passwordInput.value;
+    if(!u||!p){ authMsg.textContent='Enter a username and password'; return; }
+    await fetchUsersFromGitHub();
+    if(users[u]){ authMsg.textContent='Username exists'; return; }
+    users[u]={ passwordHash: await hashPassword(p), highScore:0 };
+    await saveUsersToGitHub(users);
+    authMsg.textContent='Registered successfully. Please login';
+  });
 
-quitBtn.addEventListener('click',()=>{
-  running=false; overlayBox.style.display="block"; stateTitle.textContent='Goodbye!'; stateHint.textContent='Thanks for playing';
-});
-</script>
-</body>
-</html>
+  logoutBtn.addEventListener('click', ()=>{
+    currentUser=null; highScore=0;
+    stateTitle.textContent='Welcome'; stateHint.textContent='Login to start playing';
+    logoutBtn.style.display='none'; refreshHighBox(); running=false;
+  });
+
+  leaderboardBtn.addEventListener('click', ()=>{
+    if(leaderboardSidebar.style.display==='none'){ populateLeaderboard(); leaderboardSidebar.style.display='block'; }
+    else leaderboardSidebar.style.display='none';
+  });
+
+  function populateLeaderboard(){
+    leaderboardList.innerHTML='';
+    const arr=Object.entries(users).map(([name,data])=>({user:name,score:data.highScore||0})).sort((a,b)=>b.score-a.score);
+    if(arr.length===0){ leaderboardList.innerHTML='<li>No players yet.</li>'; return; }
+    arr.forEach((row,i)=>{
+      const li=document.createElement('li');
+      li.textContent=`${i+1}. ${row.user} — ${row.score}`;
+      leaderboardList.appendChild(li);
+    });
+  }
+
+  playBtn.addEventListener('click', ()=>{
+    if(!currentUser){ stateHint.textContent='Login first!'; return; }
+    resetGame();
+    overlayBox.style.display="none";
+    running=true;
+    requestAnimationFrame(loop);
+  });
+
+  quitBtn.addEventListener('click', ()=>{
+    running=false;
+    overlayBox.style.display="block";
+    stateTitle.textContent='Goodbye!';
+    stateHint.textContent='Thanks for playing';
+ 
